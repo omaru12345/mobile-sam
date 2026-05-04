@@ -1,5 +1,9 @@
 # CLAUDE.md — mobile-sam
 
+> 🚨 **MUST READ FIRST**: 作業を始める前に [`rules/README.md`](rules/README.md) を起点に `rules/` 配下の全ファイルを読むこと。
+> `rules/` の内容は本ファイルより**優先**される（矛盾した場合は rules/ が勝つ）。
+> ルールが不明確、もしくはユーザーの依頼と矛盾する場合は、実装前に必ずユーザーに確認すること。
+
 ## プロジェクト概要
 
 モバイル / ブラウザで動く軽量 SAM ベースの動的オブジェクト追跡 SDK。
@@ -35,8 +39,6 @@ refactoring-{name}-{description}
 - Android: `./gradlew assembleRelease` が通ること
 - モデル変換: CoreML / TFLite どちらも変換成功
 
-## やらないこと
+## スコープ（やる / やらない）
 
-- 学習用 GPU クラスタの構築（蒸留はクラウドの一時 GPU で十分）
-- 静的画像セグメンテーションへの注力（差別化は "動画 + 軽量"）
-- 自前カメラアプリ化（SDK にとどめる）
+[`rules/02-scope.md`](rules/02-scope.md) を正とする。CLAUDE.md には重複記載しない。
