@@ -1,9 +1,9 @@
-# Architecture Design: Mobile-SAM SDK
+# Architecture Design — Mobile-SAM SDK
 
-本ドキュメントは、Mobile-SAM SDKのシステムアーキテクチャ、推論パイプライン、およびエッジデバイス向けの最適化戦略を定義する。
+This document defines the system architecture, inference pipeline, and edge-device optimization strategy for the Mobile-SAM SDK.
 
-## 1. 蒸留パイプライン (Distillation Pipeline)
-教師モデル（SAM ViT-H）の知識を軽量な生徒モデル（EfficientViT / MobileNetV3ベース）へ移行するための蒸留パイプライン。
+## 1. Distillation pipeline
+We move knowledge from the teacher (SAM ViT-H) into a lightweight student (EfficientViT / MobileNetV3-based).
 
 ```mermaid
 graph TD
@@ -36,40 +36,40 @@ graph TD
     G --> H
 ```
 
-## 2. 推論パイプライン & トラッキング統合
-モバイル環境の計算リソース制約を回避するため、`Image Encoder`（重い処理）の実行をキーフレームのみに限定し、中間フレームは`Tracker`（ByteTrack）と`Mask Decoder`（軽い処理）で補完する。
+## 2. Inference pipeline & tracking integration
+To work around mobile compute budgets, we run the heavy `Image Encoder` only on keyframes; intermediate frames are handled by the `Tracker` (ByteTrack) and the cheap `Mask Decoder`.
 
-1. **Keyframe Processing (毎秒1〜2回実行)**
-   - 入力画像 → `Image Encoder` → Image Embedding生成 (15-25ms)
-   - ユーザー入力 (Point/Box) → `Prompt Encoder` → Prompt Embedding生成 (<1ms)
-   - Image & Prompt Embeddings → `Mask Decoder` → Mask生成 & Bounding Box (BBox) 抽出 (3-5ms)
-2. **Inter-frame Tracking (それ以外の全フレームで実行)**
-   - 前フレームのBBox → `ByteTrack` (Kalman Filter + IoU/ReID) → 現フレームのBBox予測 (<2ms)
-   - 予測BBoxをPromptとして利用 → `Prompt Encoder`
-   - 現フレームをダウンスケールした簡易特徴量 + Prompt → `Mask Decoder` → 新規Mask生成 (3-5ms)
+1. **Keyframe processing (1–2 times per second)**
+   - Input image → `Image Encoder` → image embedding (15–25 ms)
+   - User input (point / box) → `Prompt Encoder` → prompt embedding (< 1 ms)
+   - Image & prompt embeddings → `Mask Decoder` → mask + bounding box (3–5 ms)
+2. **Inter-frame tracking (every other frame)**
+   - Previous BBox → `ByteTrack` (Kalman + IoU / ReID) → predicted BBox (< 2 ms)
+   - Use the predicted BBox as the prompt → `Prompt Encoder`
+   - Downscaled features of the current frame + prompt → `Mask Decoder` → updated mask (3–5 ms)
 
-## 3. プラットフォーム別 推論バックエンド比較
+## 3. Per-platform inference backends
 
-| Platform | Target API / Backend | Quantization | Hardware Acceleration | Note |
+| Platform | Target API / Backend | Quantization | Hardware acceleration | Notes |
 |---|---|---|---|---|
-| **iOS / iPadOS** | CoreML | FP16 / W8A16 | Apple Neural Engine (ANE) + GPU | iOS 16+, A14 Bionic以降推奨。ANEによるImage Encoderの劇的な高速化。 |
-| **Android** | TFLite | INT8 (Post-Training) | GPU Delegate / NNAPI / XNNPACK | Pixel/SnapdragonのHexagon DSPやAdreno GPUを活用。相性問題回避のためXNNPACKへのフォールバック実装必須。 |
-| **Web** | ONNX Runtime Web | FP16 / INT8 | WebGPU (WASM fallback) | Chrome 113以降。WebGPUのCompute Shaderによりブラウザ上でネイティブに近いFPSを実現。 |
+| **iOS / iPadOS** | CoreML | FP16 / W8A16 | Apple Neural Engine (ANE) + GPU | iOS 16+, A14 Bionic or newer recommended. ANE dramatically speeds up the Image Encoder. |
+| **Android** | TFLite | INT8 (Post-Training) | GPU Delegate / NNAPI / XNNPACK | Tap Pixel / Snapdragon Hexagon DSP and Adreno GPU. XNNPACK fallback is mandatory to absorb compatibility issues. |
+| **Web** | ONNX Runtime Web | FP16 / INT8 | WebGPU (WASM fallback) | Chrome 113+. WebGPU compute shaders give near-native FPS in the browser. |
 
-## 4. モデル変換フロー (Export & Conversion)
-PyTorchから各エッジフォーマットへの変換は以下のパイプラインを自動化(CI/CD)する。
+## 4. Model conversion flow (export & conversion)
+The conversion path from PyTorch to each edge format is automated in CI/CD.
 
-1. **PyTorch -> ONNX**: `torch.onnx.export` (opset 17)。動的バッチサイズと可変解像度を固定サイズ（例: 512x512, 1024x1024）のマルチモデル化で静的グラフに落とす。
-2. **ONNX -> CoreML**: `coremltools` を使用し、`.mlpackage` に変換。`compute_units=CTComputeUnitsAll`でANE/GPUハイブリッド実行を有効化。
-3. **ONNX -> TFLite**: `onnx2tf` (または `tf.lite.TFLiteConverter`) を使用。Representative Datasetを用いたPTQ (Post-Training Quantization) でINT8化。
+1. **PyTorch → ONNX**: `torch.onnx.export` (opset 17). Replace dynamic batch / variable resolution with a static graph by shipping multiple fixed-size models (e.g. 512×512, 1024×1024).
+2. **ONNX → CoreML**: `coremltools` produces `.mlpackage`. `compute_units=CTComputeUnitsAll` enables hybrid ANE + GPU execution.
+3. **ONNX → TFLite**: `onnx2tf` (or `tf.lite.TFLiteConverter`). PTQ (Post-Training Quantization) with a representative dataset for INT8.
 
-## 5. 目標数値 (Target Metrics)
+## 5. Targets
 
-| Metric | Target Value | Baseline / Competitor |
+| Metric | Target | Baseline / Competitor |
 |---|---|---|
-| **Model Size** | **< 15 MB** (Image Encoder + Decoder) | SAM ViT-H: 2.4 GB / SAM2-T: ~50MB |
-| **FPS (iPhone 13)** | **> 30 FPS** (Tracking時) / > 15 FPS (Full) | Original SAM: < 1 FPS (CPU) |
-| **FPS (Pixel 6)** | **> 25 FPS** (Tracking時) | Original SAM: OOM (Out of Memory) |
-| **FPS (WebGPU - M1)** | **> 40 FPS** | Web Worker + ONNX CPU: ~2 FPS |
+| **Model size** | **< 15 MB** (Image Encoder + Decoder) | SAM ViT-H: 2.4 GB / SAM2-T: ~50 MB |
+| **FPS (iPhone 13)** | **> 30 FPS** (tracking) / > 15 FPS (full) | Original SAM: < 1 FPS (CPU) |
+| **FPS (Pixel 6)** | **> 25 FPS** (tracking) | Original SAM: OOM |
+| **FPS (WebGPU on M1)** | **> 40 FPS** | Web Worker + ONNX CPU: ~2 FPS |
 | **Accuracy (IoU)** | **> 80%** (DAVIS 2017 val) | Original SAM: ~86% |
 | **Latency (Decoder)** | **< 5 ms** | - |

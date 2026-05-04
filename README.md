@@ -1,80 +1,79 @@
 # mobile-sam
 
-Segment Anything Model (SAM) を **モバイル / ブラウザで動くまで圧縮** し、
-動画フレーム間で対象オブジェクトを追跡できる SDK としてパッケージング。
+Compress the Segment Anything Model (SAM) until **it runs on mobile and in the browser**, and package it as an SDK that tracks target objects across video frames.
 
 ---
 
-## 🎯 Goal: Googleに買収されること
+## 🎯 Goal: Acquisition by Google
 
-このプロジェクトは「Google による Jetpac 型 acqui-hire（2〜3人 / 技術コア + デモ）」をエグジット目標とする。
+This project targets a **Jetpac-style acqui-hire by Google** (2–3 person team / technical core + demo).
 
-**買収対象は軽量モデル + マルチプラットフォーム SDK。** ブラウザ / iOS / Android で同じ精度・速度が出ることが価値。
+**The acquisition target is the tiny model + the cross-platform SDK.** Equal accuracy and speed across browser / iOS / Android is the value.
 
-| 想定買収先 | 統合シナリオ |
+| Likely buyer | Integration scenario |
 |---|---|
-| **Google Lens** | スマホカメラで指定オブジェクトをタップ → 物体ごと精密マスク |
-| **Google Photos** | 動画編集 "Magic Eraser" の動的版（動く物体の追跡消去）|
-| **YouTube Create** | Shorts 編集での被写体抜き出し / 背景差し替え |
-| **Pixel Camera** | 動画撮影中のリアルタイム被写体強調 |
+| **Google Lens** | Tap an object in the camera view → get a precise mask of the entire object. |
+| **Google Photos** | The video equivalent of "Magic Eraser" — track and erase moving objects. |
+| **YouTube Create** | Subject extraction / background replacement for Shorts editing. |
+| **Pixel Camera** | Real-time subject highlighting while recording video. |
 
-### 評価される技術の堀（moat）
-1. **モデルサイズ < 30MB**（FastSAM / MobileSAM をさらに蒸留）
-2. **iPhone / Pixel どちらでもリアルタイム**（30 FPS @ 720p）
-3. **追跡の安定性**（フレーム間でマスク ID がブレない）
-4. **WebGPU 版でブラウザでも動く**（PoC をブラウザで配れる）
+### Technical moat we are paid for
+1. **Model size < 30 MB** (further distilled from FastSAM / MobileSAM)
+2. **Real-time on both iPhone and Pixel** (30 FPS @ 720p)
+3. **Tracking stability** (mask IDs stay consistent across frames)
+4. **A WebGPU build that runs in the browser** (PoC anyone can try in a browser)
 
 ---
 
-## 技術スタック
+## Tech stack
 
-| レイヤー | 技術 |
+| Layer | Tech |
 |---|---|
-| ベースモデル | MobileSAM / EfficientSAM / FastSAM のいずれかを蒸留 |
-| 量子化 | INT8 / FP16、LayerNorm 等の演算をモバイル向けに置換 |
-| 推論 | iOS: CoreML、Android: TFLite（GPU/NNAPI delegate）、Web: ONNX Runtime + WebGPU |
-| トラッキング | 軽量 Kalman + IoU ベースの ID マッチング（ByteTrack 簡易版） |
-| サンプル | iOS / Android / Web の 3 つのデモ |
+| Base model | Distilled from MobileSAM / EfficientSAM / FastSAM (whichever wins) |
+| Quantization | INT8 / FP16, with mobile-friendly substitutions for ops like LayerNorm |
+| Inference | iOS: CoreML; Android: TFLite (GPU/NNAPI delegate); Web: ONNX Runtime + WebGPU |
+| Tracking | Lightweight Kalman + IoU-based ID matching (a stripped-down ByteTrack) |
+| Samples | Three demos: iOS / Android / Web |
 
 ---
 
-## ディレクトリ構成
+## Repository layout
 
 ```
 mobile-sam/
-├── model/                 # 蒸留 / 量子化スクリプト
+├── model/                 # Distillation / quantization scripts
 ├── sdk/
-│   ├── ios/              # CoreML + Swift パッケージ
+│   ├── ios/              # CoreML + Swift package
 │   └── android/          # TFLite + Kotlin AAR
-├── examples/             # 各プラットフォームのデモ
-└── docs/                 # ベンチ結果 / 買収ピッチ
+├── examples/             # Per-platform demos
+└── docs/                 # Benchmark results / acquisition pitch
 ```
 
 ---
 
-## 3 フェーズ計画
+## Three-phase plan
 
-### Phase 1（〜2か月）: モデル圧縮
-- [ ] MobileSAM の蒸留パイプラインを再現
-- [ ] CoreML / TFLite に変換、iPhone 15 / Pixel 8 で動作確認
-- [ ] 30 FPS @ 720p のレイテンシを達成
+### Phase 1 (≤ 2 months): Model compression
+- [ ] Reproduce the MobileSAM distillation pipeline
+- [ ] Convert to CoreML / TFLite, validate on iPhone 15 / Pixel 8
+- [ ] Hit 30 FPS @ 720p latency
 
-### Phase 2（〜4か月）: SDK 化 + トラッキング
-- [ ] iOS Swift パッケージ公開
-- [ ] Android AAR 公開
-- [ ] ByteTrack 簡易版でフレーム間追跡
+### Phase 2 (≤ 4 months): SDK + tracking
+- [ ] Publish the iOS Swift Package
+- [ ] Publish the Android AAR
+- [ ] Inter-frame tracking with the stripped-down ByteTrack
 
-### Phase 3（〜6か月）: 露出
-- [ ] WebGPU 版デモを公開（誰でもブラウザで触れる）
-- [ ] arXiv にレポート
-- [ ] Google Lens / Photos チームへデモ送付
+### Phase 3 (≤ 6 months): Visibility
+- [ ] Ship a WebGPU demo anyone can try in a browser
+- [ ] Submit a report to arXiv
+- [ ] Send demos to the Google Lens / Photos teams
 
 ---
 
-## 開発コマンド
+## Development commands
 
 ```bash
-# モデル蒸留・変換
+# Distillation / conversion
 cd model && python distill.py --teacher sam_vit_b --student mobile
 
 # iOS SDK
@@ -84,4 +83,4 @@ cd sdk/ios && swift build
 cd sdk/android && ./gradlew assembleRelease
 ```
 
-（実装は Phase 1 着手時に追加）
+(Implementations land when Phase 1 starts.)
