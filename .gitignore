@@ -1,0 +1,32 @@
+__pycache__/
+*.pyc
+.venv/
+
+# モデル
+*.onnx
+*.tflite
+*.mlmodel
+*.mlpackage
+*.pt
+model/checkpoints/
+model/data/
+
+# iOS
+sdk/ios/.build/
+sdk/ios/*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Android
+sdk/android/.gradle/
+sdk/android/build/
+sdk/android/local.properties
+sdk/android/.idea/
+sdk/android/.cxx/
+
+# Web
+node_modules/
+dist/
+
+.DS_Store
+.env
+docs/eval-results/
